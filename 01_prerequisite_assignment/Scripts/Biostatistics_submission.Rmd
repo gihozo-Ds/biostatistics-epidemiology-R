@@ -1,0 +1,562 @@
+---
+title: "REPORT"
+author: ""
+date: ""
+
+output:
+  html_document:
+    toc: true
+    toc_title: "TABLE OF CONTENT"
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+---
+
+<div style="text-align:center; margin-top:100px; margin-bottom:50px;">
+
+<strong><h3>University of Rwanda<h3></strong><br>
+College of Science and Technology<br>
+Department of Mathematics<br>
+Biostatistics and Epidemiology<br><br>
+
+<strong><h3>Assignment 1</h3></strong><br>
+
+Elysee IRADUKUNDA (223007830)<br>
+Gihozo Christian (223013295)<br><br>
+
+2026-02-06
+
+</div>
+
+<div style="page-break-after: always;"></div>
+
+## Introduction
+
+This report presents a comprehensive biostatistical analysis of four simulated datasets covering key concepts in **descriptive statistics, and statistical modeling**. 
+
+The objectives of this report are to:
+
+- Summarize and interpret health-related data using **descriptive statistics**
+- Identify **outliers** and assess **distributional assumptions**
+- Analyze **mortality rates** and their variability across districts
+- Model **count data** using Poisson and Negative Binomial regression
+- Assess **risk factors for disease** using logistic regression
+- Interpret results in an **epidemiological context**
+
+All analyses were conducted using **R**, with appropriate graphical and formal statistical methods.
+
+
+
+# Dataset 1: Adult Health Measurements (n = 1,200)
+
+This dataset contains simulated measurements for adult individuals, including:
+
+- **Age** (years)
+- **Body Mass Index (BMI)** (kg/m²)
+- **Systolic Blood Pressure (SBP)** (mmHg)
+- **Fasting Blood Glucose** (mg/dL)
+
+
+```{r, results='hide'}
+
+set.seed(2026)
+n <- 1200
+age <- round(runif(n, 18, 80))
+bmi <- rnorm(n, mean = 25 + 0.05*(age-40), sd = 4)
+sbp <- rnorm(n, mean = 110 + 0.6*(age-40) + 0.8*(bmi-25), sd =
+15)
+glucose <- rlnorm(n, meanlog = log(90 + 0.3*(age-40)), sdlog =
+0.25)
+adult_health <- data.frame(age, bmi, sbp, glucose)
+adult_health
+
+```
+
+
+### Problem 1.1: Descriptive statistics
+
+```{r}
+
+library(moments)
+
+desc_stats <- function(x) {
+  c(
+    mean = mean(x),
+    median = median(x),
+    trimmed_mean = mean(x, trim = 0.1),
+    sd = sd(x),
+    IQR = IQR(x),
+    skewness = skewness(x),
+    kurtosis = kurtosis(x)
+  )
+}
+
+stats_age <- desc_stats(adult_health$age)
+stats_bmi <- desc_stats(adult_health$bmi)
+stats_sbp <- desc_stats(adult_health$sbp)
+stats_glucose <- desc_stats(adult_health$glucose)
+
+stats_age
+stats_bmi
+stats_sbp
+stats_glucose
+
+
+```
+### Interpretation
+
+- **Age**  
+  The **mean (≈ 49 years)** and **median (50 years)** are nearly identical, indicating a **symmetric distribution**.  
+  The **trimmed mean** closely matches the mean, suggesting **minimal influence of extreme values**.  
+  Skewness close to zero confirms that age is **well-balanced** across the study population.
+
+- **Body Mass Index (BMI)**  
+  BMI shows a **mean (≈ 25.5)** very close to the median, indicating an **approximately normal distribution**.  
+  Variability is moderate, and the near-zero skewness suggests **little asymmetry**, making BMI suitable for parametric analyses.
+
+- **Systolic Blood Pressure (SBP)**  
+  SBP exhibits **almost identical mean and median values**, indicating strong symmetry.  
+  The standard deviation and IQR show **moderate dispersion**, consistent with typical adult populations.
+
+- **Glucose**  
+  Glucose displays a **mean notably higher than the median**, indicating **right skewness**.  
+  The **positive skewness and elevated kurtosis** suggest the presence of **extreme high values**, highlighting non-normality.
+
+
+
+
+### Problem 1.2: Identify outliers (1.5 × IQR rule)
+
+
+
+```{r}
+
+
+identify_outliers <- function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR_value <- IQR(x)
+  
+  lower_bound <- Q1 - 1.5 * IQR_value
+  upper_bound <- Q3 + 1.5 * IQR_value
+  
+  x[x < lower_bound | x > upper_bound]
+}
+
+
+outliers <- lapply(adult_health, identify_outliers)
+
+
+outliers
+
+outliers_iqr <- function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR_val <- Q3 - Q1
+  
+  lower <- Q1 - 1.5 * IQR_val
+  upper <- Q3 + 1.5 * IQR_val
+  
+  x[x < lower | x > upper]
+}
+
+out_age <- outliers_iqr(adult_health$age)
+out_bmi <- outliers_iqr(adult_health$bmi)
+out_sbp <- outliers_iqr(adult_health$sbp)
+out_glucose <- outliers_iqr(adult_health$glucose)
+
+cat("here is the number of outliers in each variable respectively")
+
+length(out_age)
+length(out_bmi)
+length(out_sbp)
+length(out_glucose)
+
+```
+
+### Interpretation
+
+Using the **1.5 × IQR rule**:
+
+- **Age** shows **no detected outliers**, indicating a well-contained range of values.
+- **BMI** exhibits **several low and high outliers**, suggesting the presence of individuals with unusually low or high body mass.
+- **SBP** has a **small number of low outliers**, reflecting atypically low blood pressure readings.
+- **Glucose** contains **numerous high outliers**, consistent with its **right-skewed distribution**.
+
+**Key implication:**  
+Robust statistical measures are especially important for **BMI and glucose**, where extreme values may strongly influence the mean and standard deviation.
+
+
+
+### Problem 1.3: Assess normality (graphical & formal)
+
+```{r}
+par(mfrow = c(2, 2))
+
+for (var in names(adult_health)) {
+  hist(adult_health[[var]],
+       main = paste("Histogram of", var),
+       xlab = var,
+       col = "lightgray",
+       border = "white")
+}
+
+par(mfrow = c(1, 1))
+
+```
+
+### Interpretation (Histograms)
+
+- **Age** appears approximately uniform to mildly symmetric, with no extreme clustering.
+- **BMI** displays a **bell-shaped and symmetric distribution**, supporting normality.
+- **SBP** also shows a **clear central peak and symmetric spread**, consistent with a normal distribution.
+- **Glucose** is **strongly right-skewed**, indicating departure from normality.
+
+Overall, **age, BMI, and SBP** are reasonably consistent with normal distributions, whereas **glucose clearly violates normality assumptions**.
+
+
+```{r}
+
+# Q-Q plots
+par(mfrow = c(2, 2))
+
+for (var in names(adult_health)) {
+  qqnorm(adult_health[[var]], main = paste("Q-Q Plot of", var))
+  qqline(adult_health[[var]], col = "red")
+}
+
+par(mfrow = c(1, 1))
+
+```
+
+### Interpretation (Q–Q Plots)
+
+- **Age** shows an **S-shaped pattern**, consistent with a **uniform distribution** and thin tails.
+- **BMI and SBP** closely follow the reference line, indicating they are **approximately normally distributed**.
+- **Glucose** deviates upward in the upper quantiles, confirming a **right-skewed (log-normal) distribution**.
+
+
+
+#formally
+
+
+```{r}
+shapiro.test(adult_health$age)
+shapiro.test(adult_health$bmi)
+shapiro.test(adult_health$sbp)
+shapiro.test(adult_health$glucose)
+
+```
+
+### Interpretation (Shapiro–Wilk Test)
+
+- **Age:** Strong evidence against normality (*p < 0.001*), consistent with its uniform generation.
+- **BMI:** No evidence against normality (*p = 0.332*).
+- **SBP:** Formal rejection of normality (*p = 0.0026*), likely due to the **large sample size** detecting minor deviations.
+- **Glucose:** Very strong evidence against normality (*p < 0.001*).
+
+**Conclusion:**  
+Glucose is clearly non-normal, while BMI and SBP are sufficiently close to normal for most parametric analyses.
+
+  
+  
+### Problem 1.4: Discuss robustness of estimators
+
+
+### Discussion
+
+The **mean and standard deviation** are sensitive to **outliers and skewed distributions**, as observed for glucose.  
+In contrast, the **median, trimmed mean, and IQR** are **robust estimators** that remain stable in the presence of extreme values.
+
+Given the strong skewness in glucose, **robust summaries or data transformations** are more appropriate for valid inference.
+
+
+
+
+# Dataset 2: Mortality Rates by District (n = 30)
+
+This dataset summarizes **annual population sizes and death counts** across 30 districts, allowing assessment of **mortality patterns and variability**.
+
+
+
+```{r,results='hide'}
+set.seed(2026)
+district <- paste0("D", 1:30)
+population <- round(runif(30, 50000, 300000))
+true_rate <- runif(30, 4, 12) / 1000
+deaths <- rpois(30, lambda = population * true_rate)
+mortality <- data.frame(district, population, deaths)
+mortality$rate <- mortality$deaths / mortality$population * 1000
+mortality
+
+```
+### Problem 2.1: Crude Mortality Rates per 1,000 Population
+
+```{r}
+mortality$crude_rate <- mortality$deaths / mortality$population * 1000
+mortality[, c("district", "population", "deaths", "crude_rate")]
+
+```
+
+#### Interpretation
+
+Crude mortality rates vary across districts, ranging from approximately **4.1 to 11.6 deaths per 1,000 population**. Districts such as **D22, D5, and D12** show relatively high mortality rates, while **D26, D17, and D4** exhibit lower rates. This variation indicates geographical differences in mortality, though the rates are crude and do not account for differences in population structure.
+
+
+
+
+### Problem 2.2: Coefficient of Variation Across Districts
+
+```{r}
+cv_rate <- sd(mortality$crude_rate) / mean(mortality$crude_rate) * 100
+cv_rate
+
+```
+
+### Interpretation of the Coefficient of Variation
+
+The coefficient of variation of **0.33** indicates a **moderate level of relative variability** in mortality rates across districts. This suggests that mortality rates differ noticeably between districts relative to the average rate, reflecting meaningful geographical variation in mortality.
+
+
+
+### Problem 2.3: Identify unusually high or low rates (standardized scores)
+
+```{r}
+mortality$z_score <- (mortality$crude_rate - mean(mortality$crude_rate)) / sd(mortality$crude_rate)
+mortality[, c("district", "crude_rate", "z_score")]
+
+
+unusual_rates <- mortality[abs(mortality$z_score) > 2, ]
+unusual_rates
+
+```
+
+### Interpretation of Standardized Scores
+
+
+No districts were identified with **unusually high or low mortality rates** based on **standardized scores**, as none had an **absolute z-score greater than 2**. This suggests that all observed mortality rates fall within the **expected range of natural variation across districts**, with **no extreme outliers detected**.
+
+
+
+### Problem 2.4: Instability of rates in small populations
+
+
+```{r}
+
+plot(mortality$population, mortality$rate,
+     xlab = "Population size",
+     ylab = "Mortality rate per 1,000",
+     main = "Mortality Rate vs Population Size"
+     )
+```
+
+### Interpretation of Rate Instability and Population Size
+
+The plot shows **greater variability in mortality rates** among districts with **smaller populations**, while rates in **larger populations appear more stable**. This pattern illustrates the **instability of rates in small populations**, where **random fluctuations in the number of deaths** can lead to **large changes in the calculated mortality rate**.
+
+
+
+
+# Dataset 3: Daily Malaria Case Counts (180 Days)
+
+This dataset consists of **daily counts of malaria cases** recorded over a **six-month period (180 days)** at a **single health facility**. The response variable is a **count outcome**, representing the number of cases observed each day.
+
+
+
+
+```{r}
+set.seed(2026)
+days <- 180
+time <- 1:days
+season <- 1 + 0.4*sin(2*pi*time/365)
+lambda <- 6 * season
+malaria_cases <- rpois(days, lambda)
+malaria <- data.frame(day = time, cases = malaria_cases)
+
+```
+
+### Problem 3.1: Fit a Poisson model and estimate the mean rate
+
+```{r}
+
+library(MASS)
+
+poisson_model <- glm(cases ~ 1, family = poisson(link = "log"), data = malaria)
+summary(poisson_model)
+
+# Estimated mean rate
+exp(coef(poisson_model))
+
+```
+### interpretation
+
+The Poisson model estimates an average of approximately **7.31 malaria cases per day** at the health facility. The intercept is highly statistically significant, indicating that the mean daily case count is clearly different from zero.
+
+
+
+### Problem 3.2: Assess goodness-of-fit
+
+```{r}
+
+deviance <- poisson_model$deviance
+df <- poisson_model$df.residual
+
+p_value <- 1 - pchisq(deviance, df)
+p_value                
+
+
+```
+
+### intrepretation
+
+The goodness-of-fit test yields a p-value of **0.089**, indicating no strong evidence against the Poisson model. This suggests that the model provides an adequate fit to the observed malaria case counts.
+
+
+### Problem 3.3: Test for overdispersion
+```{r}
+
+dispersion_ratio <- poisson_model$deviance / poisson_model$df.residual
+dispersion_ratio
+
+```
+
+### intrepretation
+
+The dispersion ratio is **1.15**, which is slightly greater than 1, indicating mild overdispersion. This suggests that the variability in malaria case counts is slightly higher than what the Poisson model assumes.
+
+
+
+### Problem 3.4: Fit a Negative Binomial model and compare AIC
+
+```{r}
+
+library(MASS)
+
+
+nb_model <- glm.nb(cases ~ 1, data = malaria)
+
+
+AIC(poisson_model, nb_model)
+
+
+exp(coef(nb_model))
+
+```
+
+### intrepretation
+
+The Poisson model has a slightly lower AIC than the negative binomial model, indicating a marginally better fit. This suggests that the additional flexibility of the negative binomial model is not strongly justified for these data.
+
+
+
+# Dataset 4: Disease Status and Risk Factors
+
+This dataset investigates the relationship between **disease occurrence** and a set of **selected risk factors**, including **smoking status**, **age**, and **socioeconomic status**. The outcome variable is binary, indicating the presence or absence of disease.
+
+
+
+
+```{r}
+set.seed(2026)
+n <- 1000
+age <- round(runif(n, 18, 80))
+smoking <- rbinom(n, 1, 0.3)
+ses <- factor(sample(c("Low","Medium","High"), n, replace=TRUE))
+linpred <--4 + 0.04*age + 0.9*smoking
+prob <- 1 / (1 + exp(-linpred))
+disease <- rbinom(n, 1, prob)
+epi_data <- data.frame(age, smoking, ses, disease)
+```
+
+
+### Problem 4.1: Fit logistic regression models
+
+```{r}
+
+crude_model <- glm(disease ~ smoking, family = binomial(link = "logit"), data = epi_data)
+summary(crude_model)
+
+```
+```{r}
+
+adjusted_model <- glm(disease ~ smoking + age + ses, family = binomial(link = "logit"), data = epi_data)
+summary(adjusted_model)
+
+```
+### intrepretation
+
+In the crude model, smoking is significantly associated with disease status, with smokers having higher odds of disease compared to non-smokers. After adjustment for age and socioeconomic status, smoking remains a significant predictor, and increasing age is also significantly associated with higher disease odds. Socioeconomic status shows no statistically significant association with disease after adjustment.
+
+
+
+
+### Problem 4.2: Estimate odds ratios and 95% confidence intervals
+
+```{r}
+# Crude ORs
+exp(cbind(OR = coef(crude_model), confint(crude_model)))
+
+# Adjusted ORs
+exp(cbind(OR = coef(adjusted_model), confint(adjusted_model)))
+
+```
+### intrepretation
+
+Smokers have approximately **1.8 times higher odds** of disease compared to non-smokers in both crude and adjusted models, with confidence intervals excluding 1. Each additional year of age increases the odds of disease by about **3–4%**, while the confidence intervals for socioeconomic status include 1, indicating no clear association.
+
+
+
+### Problem 4.3: Assess confounding and interaction
+
+```{r}
+
+coef(crude_model)["smoking"]
+coef(adjusted_model)["smoking"]
+
+model_interaction <- glm(disease ~ smoking * age + ses,
+                         family = binomial(link = "logit"),
+                         data = epi_data)
+
+summary(model_interaction)
+
+```
+### intrepretation
+
+The smoking coefficient changes only slightly after adjustment for age and socioeconomic status, suggesting minimal confounding. The interaction between smoking and age is weak and not statistically significant, indicating limited evidence that the effect of smoking on disease varies by age.
+
+
+
+### Problem 4.4: Evaluate model performance using ROC and AUC
+
+```{r}
+
+library(pROC)
+
+
+pred_prob <- predict(adjusted_model, type = "response")
+
+
+roc_curve <- roc(epi_data$disease, pred_prob)
+plot(roc_curve, main="ROC Curve")
+auc(roc_curve)  # Area Under the Curve
+
+```
+### intrepretation
+
+The ROC curve indicates that the adjusted logistic regression model has good discriminatory ability to distinguish between individuals with and without disease. This suggests that the model performs better than chance in predicting disease status.
+
+
+#### Conclusion
+
+This report applied concepts of **biostatistics and epidemiology** to four simulated datasets, demonstrating the use of descriptive statistics, rate calculations, and regression modeling to answer practical public health questions.
+
+In **Dataset 1**, descriptive analyses highlighted the importance of examining distributional properties, identifying outliers, and assessing normality. While age, BMI, and systolic blood pressure were approximately symmetric and suitable for parametric methods, glucose exhibited strong right skewness, emphasizing the need for **robust estimators** or transformations when data deviate from normality.
+
+In **Dataset 2**, crude mortality rates showed **moderate variability across districts**, with no extreme outliers identified using standardized scores. The analysis clearly demonstrated the **instability of rates in small populations**, reinforcing the epidemiological principle that crude rates from small denominators should be interpreted with caution.
+
+In **Dataset 3**, Poisson regression provided an appropriate framework for modeling daily malaria case counts. The estimated mean rate summarized the underlying malaria burden, and model diagnostics indicated only **mild overdispersion**, with no strong justification for a more complex Negative Binomial model.
+
+In **Dataset 4**, logistic regression analysis identified **smoking and age as key risk factors** for disease occurrence. Smoking remained a significant predictor after adjustment, with minimal evidence of confounding or interaction. Model performance assessment using ROC and AUC demonstrated **good discriminatory ability**, supporting the usefulness of the fitted model.
+
+Overall, these analyses illustrate the importance of **choosing appropriate statistical methods**. The report underscores how biostatistical tools support evidence-based decision-making in public health research.
+
