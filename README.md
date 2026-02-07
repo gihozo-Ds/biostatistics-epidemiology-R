@@ -10,7 +10,7 @@ Biostatistics, Epidemiology, and Data Analysis.
   - `data/` – Generated datasets
   - `scripts/` – R scripts
   - `report/` – Reports in R Markdown and PDF
-  - More to come :) 
+## More to come :) 
 
 
 
