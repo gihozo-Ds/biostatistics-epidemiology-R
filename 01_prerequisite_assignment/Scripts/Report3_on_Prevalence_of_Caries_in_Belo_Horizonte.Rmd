@@ -1,0 +1,261 @@
+---
+title: "Biostatistics and Epidemiology - REPORT3"
+author: "By Gihozo Christian (223013295) & Iradukunda Claudine (223010775)"
+date: '20-02-2026'
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 3
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+---
+
+# Question 1: Prevalence of Caries in Belo Horizonte (at the beginning of study)
+
+```{r, message=FALSE, warning=FALSE}
+library(VGAMdata)
+
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+data("belcap")
+View(belcap)
+```
+
+### Overall
+
+```{r}
+
+belcap$caries_b <- ifelse(belcap$dmftb > 0, 1, 0)
+
+```
+
+
+
+```{r}
+
+n_total <- nrow(belcap)
+n_cases <- sum(belcap$caries_b)
+
+prev <- n_cases / n_total
+prev
+
+```
+
+### Confidence Interval for Overall
+
+```{r}
+
+se <- sqrt(prev * (1 - prev) / n_total)
+
+lower <- prev - 2 * se
+upper <- prev + 2 * se
+
+c(lower, upper)
+
+```
+**interpretation**
+
+At baseline, the prevalence of dental caries was 78.4% (95% CI: 75.5%–81.3%).
+
+Epidemiologically, this indicates that nearly four out of five 7-year-old children already had evidence of caries at the start of the study, reflecting a very high burden of disease in this population.
+
+### Stratified by Gender
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+```
+
+
+```{r}
+
+belcap %>%
+  group_by(gender) %>%
+  summarise(
+    n = n(),
+    cases = sum(caries_b),
+    prevalence = cases/n,
+    se = sqrt(prevalence*(1-prevalence)/n),
+    lower = prevalence - 2*se,
+    upper = prevalence + 2*se
+  )
+
+```
+**interpretation**
+
+
+The prevalence of caries among females was 77.4% (95% CI: 73.1%–81.6%), while among males it was 79.4% (95% CI: 75.4%–83.4%).
+
+The prevalence was slightly higher in males; however, the confidence intervals overlap substantially, suggesting no strong epidemiological evidence of a meaningful difference in baseline caries prevalence between these boys and girls.
+
+### stratified by School
+
+```{r}
+
+belcap %>%
+  group_by(school) %>%
+  summarise(
+    n = n(),
+    cases = sum(caries_b),
+    prevalence = cases/n,
+    se = sqrt(prevalence*(1-prevalence)/n),
+    lower = prevalence - 2*se,
+    upper = prevalence + 2*se
+  )
+
+```
+
+**interpretation**
+
+Baseline caries prevalence varied considerably across schools, ranging from 68.5% in School 2 to 87.1% in School 1.
+
+This variation suggests potential differences in environmental, behavioral, or preventive factors between schools, indicating that school-level factors may influence caries distribution in this population.
+
+
+### statified by gender and school
+
+
+```{r}
+
+belcap %>%
+  group_by(gender, school) %>%
+  summarise(
+    n = n(),
+    cases = sum(caries_b),
+    prevalence = cases/n,
+    se = sqrt(prevalence*(1-prevalence)/n),
+    lower = prevalence - 2*se,
+    upper = prevalence + 2*se
+  )
+
+```
+
+**interpretation**
+
+
+When stratified by both gender and school, substantial variability was observed across subgroups. For example, prevalence among males in School 1 reached 95.2%, while males in School 2 had a much lower prevalence (59.7%).
+
+These findings suggest that both gender and school context may jointly influence caries distribution. However, some confidence intervals are wide, indicating smaller subgroup sample sizes and less precise estimates.
+
+
+# Question 2: Prevalence of Caries in Belo Horizonte(at the beginning to end of study)
+
+### overall
+
+```{r}
+
+
+
+belcap <- belcap %>%
+  mutate(
+    at_risk = ifelse(dmftb == 0, 1, 0),
+    incident = ifelse(dmftb == 0 & dmfte > 0, 1, 0)
+  )
+
+
+risk_set <- belcap %>% filter(at_risk == 1)
+
+
+risk_set %>%
+  summarise(
+    incidence = mean(incident),
+    lower_95CI = incidence - 2 * sqrt(incidence*(1-incidence)/n()),
+    upper_95CI = incidence + 2 * sqrt(incidence*(1-incidence)/n())
+  )
+
+```
+
+**interpretation**
+
+The overall incidence of caries during the follow-up period was 27.3% (95% CI: 20.5%–34.1%).
+
+This indicates that approximately one in four children who were initially caries-free developed new caries over the two-year follow-up, demonstrating continued disease occurrence despite preventive interventions.
+
+
+###  stratified by Gender
+
+```{r}
+
+risk_set %>%
+  group_by(gender) %>%
+  summarise(
+    incidence = mean(incident),
+    lower_95CI = incidence - 2 * sqrt(incidence*(1-incidence)/n()),
+    upper_95CI = incidence + 2 * sqrt(incidence*(1-incidence)/n())
+  )
+
+```
+
+
+**interpretation**
+
+Incidence was 29.5% among females and 25.0% among males.
+
+Although females showed a slightly higher incidence, the overlapping confidence intervals suggest no strong epidemiological evidence of a significant gender difference in new caries development.
+
+
+### stratified by School
+
+
+```{r}
+
+risk_set %>%
+  group_by(school) %>%
+  summarise(
+    incidence = mean(incident),
+    lower_95CI = incidence - 2 * sqrt(incidence*(1-incidence)/n()),
+    upper_95CI = incidence + 2 * sqrt(incidence*(1-incidence)/n())
+  )
+
+```
+
+
+**interpretation**
+
+Incidence varied notably by school, ranging from 10.3% in School 5 to 41.9% in School 4.
+
+This suggests that the risk of developing new caries differed across schools, potentially reflecting differences in intervention effectiveness, oral hygiene practices, dietary habits, or other contextual factors.
+
+
+
+### Stratified by Gender and School
+
+```{r}
+
+risk_set %>%
+  group_by(gender, school ) %>%
+  summarise(
+    incidence = mean(incident),
+    lower_95CI = incidence - 2 * sqrt(incidence*(1-incidence)/n()),
+    upper_95CI = incidence + 2 * sqrt(incidence*(1-incidence)/n())
+  )
+
+```
+
+
+**interpretation**
+
+When stratified by both gender and school, incidence estimates showed substantial variability, and several confidence intervals were wide or included negative lower bounds (due to normal approximation).
+
+This indicates reduced precision in smaller subgroups and suggests that some subgroup estimates should be interpreted cautiously. Nonetheless, differences across schools appear more pronounced than differences between genders.
+
+
+### Why Is It Useless to Stratify by Age?
+
+Because:
+
+All children were 7 years old at baseline.
+
+There is no variation in age.
+
+Stratification requires variability.
+
+So stratifying by age would give identical groups.
+
+
+
